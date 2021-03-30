@@ -1,17 +1,17 @@
 const puppeteer = require("puppeteer");
-const args = process.argv.slice(2).toString();
+const args = process.argv.slice(2);
 const { removeEmpty } = require('./utils');
-
+const pramId = args[1] ? args[1].toString() : null;
 
 const checkArgs = () => {
-    // console.log(args)
-    switch (args) {
+    switch (args[0].toString()) {
         case "box_office":
             console.log("getting box office data...")
             boxOffice();
             break;
-        case "get_data2":
-            console.log("ok2")
+        case "movie_data":
+            console.log(`getting movie data ID: ${pramId}`)
+            movieData(pramId)
             break;
     }
 }
@@ -26,12 +26,12 @@ const symbols = [
     }
 ];
 
-async function app() {
-    for await (symbol of symbols) {
-        const description = await getDescription(symbol.id);
-        console.log({ ...symbol, description });
-        // console.log(symbol)
-    }
+async function movieData(movieId) {
+    // for await (symbol of symbols) {
+    const data = await getDescription(movieId);
+    console.log(data);
+    // console.log(symbol)
+    // }
 }
 
 async function boxOffice() {
@@ -80,14 +80,14 @@ async function getBoxOffice() {
     };
 }
 
-async function getDescription(symbol) {
+async function getDescription(movieId) {
     const browser = await puppeteer.launch({ headless: true });
     const page = await browser.newPage();
     await page.goto(
-        `https://www.imdb.com/title/${symbol}/`
+        `https://www.imdb.com/title/${movieId}/`
     );
 
-    const text = await page.evaluate(() => {
+    const data = await page.evaluate(() => {
         const title = document.querySelector(
             "#title-overview-widget > div.vital > div.title_block > div > div.titleBar > div.title_wrapper > h1"
         ).innerText;
@@ -101,9 +101,28 @@ async function getDescription(symbol) {
 
     });
 
+    const table = await page.evaluate(() => {
+
+        const rowNodeList = document.querySelectorAll('div#titleCast > table > tbody > tr');
+        const rowArray = Array.from(rowNodeList);
+        return rowArray.slice(1).map(tr => {
+            const dataNodeList = tr.querySelectorAll('td');
+            const dataArray = Array.from(dataNodeList);
+            // const dataNodeCoverList = tr.querySelectorAll('td.primary_photo > a');
+            // const dataCoverArray = Array.from(dataNodeCoverList);
+            const [title, actor, Weekend, as] = dataArray.map(td => td.innerText);
+            // const [imgUrl] = dataCoverArray.map(img => img.getAttribute('src'));
+
+            return { actor, as, imgUrl }
+        })
+    });
+
     await browser.close();
 
-    return text;
+    return {
+        ...data,
+        castList: table
+    };
 }
 
 checkArgs();
